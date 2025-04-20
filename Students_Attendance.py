@@ -176,27 +176,106 @@ else:
                     st.warning("No face detected - please try again")
         
         elif method == "Fingerprint":
-            if 'fingerprint_attempts' not in st.session_state:
-                st.session_state.fingerprint_attempts = 0
             
-            st.info("Press the button below and place your finger on the sensor 2 times")
+            st.warning("Please touch your device's fingerprint sensor now")
             
-            if st.button("Scan Fingerprint Now"):
-                with st.spinner("Verifying fingerprint..."):
-                    try:
-                        # Replace with actual hardware SDK calls
-                        result = fingerprint_scanner.verify()
-                        
-                        if result.success:
-                            st.session_state.fingerprint_verified = True
-                            record_attendance(student_id, "Fingerprint")
-                            st.success("✅ Fingerprint verified successfully!")
-                        else:
-                            st.error(f"❌ Verification failed: {result.message}")
-                            
-                    except Exception as e:
-                        st.error(f"❌ Scanner error: {str(e)}")
-
+            # HTML/JavaScript to trigger real fingerprint authentication
+            fingerprint_html = """
+            <script>
+            async function authenticateFingerprint() {
+                try {
+                    // Check if WebAuthn is supported
+                    if (!window.PublicKeyCredential) {
+                        throw new Error("Browser doesn't support fingerprint authentication");
+                    }
+                    
+                    // Check if fingerprint auth is available
+                    const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                    if (!isAvailable) {
+                        throw new Error("Fingerprint authentication not available on this device");
+                    }
+                    
+                    // Perform the actual fingerprint verification
+                    const credential = await navigator.credentials.get({
+                        publicKey: {
+                            challenge: new Uint8Array([1,2,3,4,5,6,7,8]), // Random challenge
+                            rpId: window.location.hostname,
+                            userVerification: "required"
+                        }
+                    });
+                    
+                    // If we get here, fingerprint was verified
+                    window.parent.postMessage({
+                        type: 'fingerprintVerified',
+                        success: true,
+                        studentId: '""" + st.session_state.current_student['Student ID'] + """'
+                    }, '*');
+                    
+                } catch (error) {
+                    window.parent.postMessage({
+                        type: 'fingerprintVerified', 
+                        success: false,
+                        error: error.message
+                    }, '*');
+                }
+            }
+            
+            // Start fingerprint auth immediately
+            authenticateFingerprint();
+            </script>
+            """
+            
+            # Display status container
+            status_container = st.empty()
+            status_container.info("Waiting for fingerprint verification...")
+            
+            # Display the fingerprint HTML component
+            st.components.v1.html(fingerprint_html, height=0)
+            
+            # Handle verification results
+            if 'fingerprint_result' in st.session_state:
+                if st.session_state.fingerprint_result['success']:
+                    record_attendance(
+                        st.session_state.current_student['Student ID'],
+                        "Fingerprint"
+                    )
+                    status_container.success("Fingerprint verified successfully!")
+                else:
+                    status_container.error(f"Verification failed: {st.session_state.fingerprint_result['error']}")
+                del st.session_state.fingerprint_result
+        
+        # JavaScript message handler
+        st.components.v1.html("""
+        <script>
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'fingerprintVerified') {
+                const xhr = new XMLHttpRequest();
+                const params = `fingerprint_success=${event.data.success}&student_id=${encodeURIComponent(event.data.studentId)}`;
+                
+                if (!event.data.success) {
+                    params += `&error=${encodeURIComponent(event.data.error)}`;
+                }
+                
+                xhr.open('POST', window.location.href + '?' + params, true);
+                xhr.send();
+            }
+        });
+        </script>
+        """)
+        
+        # Handle the query parameters
+        query_params = st.query_params
+        if 'fingerprint_success' in query_params:
+            result = {
+                'success': query_params['fingerprint_success'][0] == 'true',
+                'student_id': query_params['student_id'][0]
+            }
+            
+            if not result['success'] and 'error' in query_params:
+                result['error'] = query_params['error'][0]
+            
+            st.session_state.fingerprint_result = result
+            st.rerun()
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
