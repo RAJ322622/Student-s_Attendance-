@@ -176,53 +176,54 @@ else:
                     st.warning("No face detected - please try again")
         
         elif method == "Fingerprint":
+                
+            st.warning("Please physically touch your fingerprint sensor")
             
-            
-            st.warning("Please physically touch your device's fingerprint sensor")
-            
-            # HTML/JavaScript for real fingerprint authentication
-            fingerprint_js = """
+            # Fingerprint verification component
+            fingerprint_html = """
             <script>
-            document.getElementById('fingerprint-btn').addEventListener('click', async function() {
+            async function verifyFingerprint() {
                 try {
+                    // Check support
                     if (!window.PublicKeyCredential) {
-                        throw new Error("Fingerprint not supported in this browser");
+                        throw new Error("Browser doesn't support fingerprint auth");
                     }
                     
-                    const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-                    if (!isAvailable) {
+                    // Check sensor availability
+                    const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                    if (!available) {
                         throw new Error("No fingerprint sensor detected");
                     }
                     
-                    // This will trigger the device's native fingerprint prompt
+                    // Trigger authentication
                     const credential = await navigator.credentials.get({
                         publicKey: {
-                            challenge: new Uint8Array([1,2,3,4]),
+                            challenge: new Uint8Array([1,2,3,4]), // Should be random in production
                             rpId: window.location.hostname,
                             userVerification: "required"
                         }
                     });
                     
-                    // Only reaches here after successful physical touch
-                    window.parent.postMessage({
-                        type: 'fingerprintSuccess',
-                        studentId: '""" + st.session_state.current_student['Student ID'] + """'
-                    }, '*');
+                    return { success: true };
                     
                 } catch (error) {
-                    window.parent.postMessage({
-                        type: 'fingerprintError',
-                        error: error.message
-                    }, '*');
+                    return { success: false, error: error.message };
                 }
+            }
+            
+            document.getElementById('finger-btn').addEventListener('click', async () => {
+                const result = await verifyFingerprint();
+                window.parent.postMessage({
+                    type: 'fingerprintResult',
+                    success: result.success,
+                    error: result.error || '',
+                    studentId: '""" + st.session_state.current_student['Student ID'] + """'
+                }, '*');
             });
             </script>
-            """
             
-            # Add fingerprint button
-            st.markdown("""
-            <button id="fingerprint-btn" style="
-                padding: 15px 30px;
+            <button id="finger-btn" style="
+                padding: 12px 24px;
                 background: #4CAF50;
                 color: white;
                 border: none;
@@ -230,15 +231,12 @@ else:
                 font-size: 16px;
                 cursor: pointer;
             ">
-            🔒 Touch Fingerprint Sensor
+            🔒 Authenticate Now
             </button>
-            """, unsafe_allow_html=True)
+            """
             
-            # Add the JavaScript
-            st.components.v1.html(fingerprint_js, height=0)
-            
-            # Status display
-            status = st.empty()
+            # Display component
+            st.components.v1.html(fingerprint_html, height=100)
             
             # Handle results
             if 'fingerprint_result' in st.session_state:
@@ -247,45 +245,28 @@ else:
                         st.session_state.current_student['Student ID'],
                         "Fingerprint"
                     )
-                    status.success("Verified! Attendance recorded.")
+                    st.success("Verified successfully!")
                 else:
-                    status.error(f"Error: {st.session_state.fingerprint_result['error']}")
+                    st.error(f"Failed: {st.session_state.fingerprint_result['error']}")
                 del st.session_state.fingerprint_result
         
-        # Message handler (must be at bottom)
+        # Message handler (place at bottom of script)
         st.components.v1.html("""
         <script>
         window.addEventListener('message', (event) => {
-            if (event.data.type === 'fingerprintSuccess') {
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", window.location.href + "?fingerprint_success=true&student_id=" + 
-                    encodeURIComponent(event.data.studentId), true);
-                xhr.send();
-            }
-            else if (event.data.type === 'fingerprintError') {
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", window.location.href + "?fingerprint_error=" + 
-                    encodeURIComponent(event.data.error), true);
-                xhr.send();
+            if (event.data.type === 'fingerprintResult') {
+                const params = new URLSearchParams();
+                params.append('fingerprint_success', event.data.success);
+                params.append('student_id', event.data.studentId);
+                if (!event.data.success) params.append('error', event.data.error);
+                
+                fetch(window.location.href.split('?')[0] + '?' + params.toString(), {
+                    method: 'POST'
+                });
             }
         });
         </script>
         """)
-        
-        # Handle query params
-        if 'fingerprint_success' in st.query_params:
-            st.session_state.fingerprint_result = {
-                'success': True,
-                'student_id': st.query_params['student_id']
-            }
-            st.rerun()
-            
-        elif 'fingerprint_error' in st.query_params:
-            st.session_state.fingerprint_result = {
-                'success': False,
-                'error': st.query_params['fingerprint_error']
-            }
-            st.rerun()
 
     with tab2:
         st.header("Your Attendance Records")
