@@ -184,7 +184,7 @@ else:
             if st.button("Scan Fingerprint", key="fingerprint_btn"):
                 st.session_state.fingerprint_attempts += 1
                 
-                if st.session_state.fingerprint_attempts < 2:
+                if st.session_state.fingerprint_attempts < 3:
                     st.warning(f"Scan attempt {st.session_state.fingerprint_attempts}/2 - Keep your finger on the sensor")
                     with st.spinner("Scanning..."):
                         time.sleep(1)  # Simulate scanning delay
