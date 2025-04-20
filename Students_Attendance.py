@@ -37,6 +37,12 @@ if 'logged_in' not in st.session_state:
 os.makedirs('data/faces', exist_ok=True)
 os.makedirs('data/attendance_photos', exist_ok=True)
 
+# Email configuration (you should replace these with your actual email settings)
+EMAIL_ADDRESS = "your_email@example.com"
+EMAIL_PASSWORD = "your_email_password"
+SMTP_SERVER = "smtp.example.com"
+SMTP_PORT = 587
+
 # Fingerprint Authentication JavaScript
 fingerprint_js = """
 <script>
@@ -131,9 +137,6 @@ def record_attendance(student_id, method, photo_path=None, fingerprint_id=None):
         send_email(student_email, student_name, now)
     else:
         st.warning("Student not found")
-
-# Check for fingerprint scanner
-fingerprint_scanner_connected = check_fingerprint_scanner()
 
 # Login/Registration System
 if not st.session_state.logged_in:
