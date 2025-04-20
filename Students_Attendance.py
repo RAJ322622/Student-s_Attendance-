@@ -177,7 +177,7 @@ else:
         
         elif method == "Fingerprint":
             if 'fingerprint_attempts' not in st.session_state:
-                st.session_state.fingerprint_attempts = 1
+                st.session_state.fingerprint_attempts = 0
             
             st.info("Press the button below and place your finger on the sensor 2 times")
             
