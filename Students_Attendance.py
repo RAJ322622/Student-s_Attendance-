@@ -8,7 +8,6 @@ import base64
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import fpylll  # For fingerprint processing (example library)
 import platform
 import subprocess
 
@@ -36,12 +35,6 @@ os.makedirs('data/faces', exist_ok=True)
 os.makedirs('data/attendance_photos', exist_ok=True)
 os.makedirs('data/fingerprints', exist_ok=True)
 
-# Email configuration
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-EMAIL_ADDRESS = "your_email@gmail.com"  # Replace with your email
-EMAIL_PASSWORD = "your_password"       # Replace with your password
-
 # Fingerprint scanner setup
 def check_fingerprint_scanner():
     """Check if a fingerprint scanner is connected"""
@@ -61,6 +54,7 @@ def check_fingerprint_scanner():
 def enroll_fingerprint(student_id):
     """Simulate fingerprint enrollment"""
     # In a real implementation, this would interface with the fingerprint scanner SDK
+    # For now, we'll just create a dummy file to simulate enrollment
     fingerprint_file = f"data/fingerprints/{student_id}.fpr"
     with open(fingerprint_file, 'w') as f:
         f.write(f"Fingerprint data for {student_id}")
@@ -69,6 +63,7 @@ def enroll_fingerprint(student_id):
 def verify_fingerprint(student_id):
     """Simulate fingerprint verification"""
     # In a real implementation, this would interface with the fingerprint scanner SDK
+    # For now, we'll just check if the enrollment file exists
     fingerprint_file = f"data/fingerprints/{student_id}.fpr"
     return os.path.exists(fingerprint_file)
 
@@ -208,35 +203,34 @@ else:
                 else:
                     st.warning("No face detected - please try again")
         
-        elif method == "Fingerprint":
-            if not fingerprint_scanner_connected:
-                st.warning("No fingerprint scanner detected. Please connect a USB fingerprint scanner.")
-            else:
-                st.info("Fingerprint scanner detected and ready")
-                
-                # Check if student has registered fingerprint
-                if not st.session_state.current_student['FingerprintRegistered']:
-                    if st.button("Register Fingerprint"):
-                        if enroll_fingerprint(st.session_state.current_student['Student ID']):
-                            st.session_state.student_data.loc[
-                                st.session_state.student_data['Student ID'] == st.session_state.current_student['Student ID'],
-                                'FingerprintRegistered'
-                            ] = True
-                            st.session_state.student_data.to_csv('data/students.csv', index=False)
-                            st.success("Fingerprint registered successfully!")
-                        else:
-                            st.error("Fingerprint registration failed")
+elif method == "Fingerprint":
+    if not check_fingerprint_scanner():
+        st.warning("No fingerprint scanner detected. Please connect a USB fingerprint scanner.")
+    else:
+        st.info("Fingerprint scanner detected and ready")
+        
+        # Check if student has registered fingerprint
+        if not st.session_state.current_student['FingerprintRegistered']:
+            if st.button("Register Fingerprint"):
+                if enroll_fingerprint(st.session_state.current_student['Student ID']):
+                    st.session_state.student_data.loc[
+                        st.session_state.student_data['Student ID'] == st.session_state.current_student['Student ID'],
+                        'FingerprintRegistered'
+                    ] = True
+                    st.session_state.student_data.to_csv('data/students.csv', index=False)
+                    st.success("Fingerprint registered successfully!")
                 else:
-                    if st.button("Authenticate with Fingerprint"):
-                        if verify_fingerprint(st.session_state.current_student['Student ID']):
-                            record_attendance(
-                                st.session_state.current_student['Student ID'], 
-                                "Fingerprint",
-                                fingerprint_id=st.session_state.current_student['Student ID']
-                            )
-                        else:
-                            st.error("Fingerprint verification failed")
-
+                    st.error("Fingerprint registration failed")
+        else:
+            if st.button("Authenticate with Fingerprint"):
+                if verify_fingerprint(st.session_state.current_student['Student ID']):
+                    record_attendance(
+                        st.session_state.current_student['Student ID'], 
+                        "Fingerprint",
+                        fingerprint_id=st.session_state.current_student['Student ID']
+                    )
+                else:
+                    st.error("Fingerprint verification failed")
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
