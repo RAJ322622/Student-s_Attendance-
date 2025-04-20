@@ -9,6 +9,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import time
+from streamlit.components.v1 import html  # Add this import at the top of your file
+
 
 # Initialize session state for authentication status
 if 'auth_status' not in st.session_state:
@@ -150,7 +152,7 @@ else:
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
 
     with tab1:
-   
+  
         st.header("Mark Attendance")
         method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
         
@@ -177,7 +179,7 @@ else:
                     st.warning("No face detected - please try again")
         
         elif method == "Fingerprint":
-            st.markdown("""
+            fingerprint_js = """
             <div id="fingerprint-container" style="text-align: center;">
                 <h3>Place and hold your finger on the sensor</h3>
                 <div id="sensor" style="
@@ -195,7 +197,7 @@ else:
                 " onmousedown="startScan()" onmouseup="stopScan()" ontouchstart="startScan()" ontouchend="stopScan()">🖐️</div>
                 <p id="status">Press and hold your finger on the sensor</p>
             </div>
-        
+    
             <script>
             let scanTimer;
             let isScanning = false;
@@ -223,7 +225,7 @@ else:
                             window.parent.postMessage({
                                 type: 'fingerprintResult',
                                 success: true,
-                                studentId: '""" + st.session_state.current_student['Student ID'] + """'
+                                studentId: '%s'
                             }, '*');
                         } else {
                             sensor.innerHTML = "❌";
@@ -246,32 +248,39 @@ else:
                 status.textContent = "Press and hold your finger on the sensor";
             }
             </script>
-            """, unsafe_allow_html=True)
-        
-            # Handle the fingerprint result
-            components.html("""
+            """ % st.session_state.current_student['Student ID']
+    
+            st.markdown(fingerprint_js, unsafe_allow_html=True)
+    
+            # JavaScript to handle communication with Streamlit
+            fingerprint_handler = """
             <script>
             window.addEventListener('message', (event) => {
                 if (event.data.type === 'fingerprintResult' && event.data.success) {
-                    const params = new URLSearchParams();
-                    params.append('fingerprint_success', event.data.success);
-                    params.append('student_id', event.data.studentId);
-                    window.location.search = params.toString();
+                    fetch('/fingerprint_auth', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            student_id: event.data.studentId,
+                            success: event.data.success
+                        })
+                    });
                 }
             });
             </script>
-            """, height=0)
-        
-            # Process the result
-            params = st.experimental_get_query_params()
-            if 'fingerprint_success' in params:
-                if params['fingerprint_success'][0] == 'true':
-                    record_attendance(
-                        st.session_state.current_student['Student ID'],
-                        "Fingerprint"
-                    )
-                    st.experimental_set_query_params()
-                    st.rerun()
+            """
+            html(fingerprint_handler)
+    
+            # Handle fingerprint authentication via a custom endpoint
+            if st.experimental_get_query_params().get('fingerprint_auth'):
+                record_attendance(
+                    st.session_state.current_student['Student ID'],
+                    "Fingerprint"
+                )
+                st.experimental_set_query_params()
+                st.rerun()
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
