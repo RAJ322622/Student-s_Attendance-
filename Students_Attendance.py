@@ -30,6 +30,8 @@ if 'student_data' not in st.session_state:
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
+if 'auth_status' not in st.session_state:
+    st.session_state.auth_status = None
 
 # Create directories
 os.makedirs('data/faces', exist_ok=True)
@@ -55,63 +57,6 @@ def check_fingerprint_scanner():
             return "Fingerprint" in result.stdout
     except:
         return False
-
-# WebAuthn fingerprint implementation for mobile
-fingerprint_js = """
-<script>
-async function authenticateFingerprint(studentId) {
-    try {
-        const credential = await navigator.credentials.get({
-            publicKey: {
-                challenge: new Uint8Array([1,2,3,4,5,6,7,8]),
-                rpId: window.location.hostname,
-                allowCredentials: [{
-                    type: 'public-key',
-                    id: new TextEncoder().encode(studentId),
-                    transports: ['internal']
-                }],
-                userVerification: 'required'
-            }
-        });
-        
-        return {success: true, studentId: studentId};
-    } catch (error) {
-        return {success: false, error: error.message};
-    }
-}
-
-async function registerFingerprint(studentId) {
-    try {
-        const credential = await navigator.credentials.create({
-            publicKey: {
-                rp: {
-                    name: "Attendance System",
-                    id: window.location.hostname
-                },
-                user: {
-                    id: new TextEncoder().encode(studentId),
-                    name: studentId,
-                    displayName: studentId
-                },
-                pubKeyCredParams: [
-                    {type: "public-key", alg: -7}  // ES256
-                ],
-                authenticatorSelection: {
-                    userVerification: "required",
-                    requireResidentKey: true
-                },
-                attestation: "direct",
-                challenge: new Uint8Array([1,2,3,4,5,6,7,8])
-            }
-        });
-        
-        return {success: true, studentId: studentId};
-    } catch (error) {
-        return {success: false, error: error.message};
-    }
-}
-</script>
-"""
 
 # Page config
 st.set_page_config(page_title="Student Attendance System", layout="wide")
@@ -187,7 +132,7 @@ if not st.session_state.logged_in:
             ]
             if not student_info.empty:
                 st.session_state.logged_in = True
-                st.session_state.current_student = student_info.iloc[0]
+                st.session_state.current_student = student_info.iloc[0].to_dict()
                 st.rerun()
             else:
                 st.error("Invalid credentials")
@@ -217,6 +162,7 @@ else:
     st.sidebar.header(f"Welcome, {st.session_state.current_student['Name']}")
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
+        st.session_state.auth_status = None
         st.rerun()
 
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
@@ -225,160 +171,106 @@ else:
         st.header("Mark Attendance")
         method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
         
-        if method == "Fingerprint":
-            # Enhanced mobile fingerprint authentication
-            fingerprint_js = """
+        if method == "Face Recognition":
+            picture = st.camera_input("Take a picture for attendance")
+            
+            if picture:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                photo_path = f"data/attendance_photos/{st.session_state.current_student['Student ID']}_{timestamp}.jpg"
+                with open(photo_path, "wb") as f:
+                    f.write(picture.getbuffer())
+                
+                img_bytes = picture.getvalue()
+                img_array = np.frombuffer(img_bytes, np.uint8)
+                img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                
+                if detect_faces(img):
+                    record_attendance(
+                        st.session_state.current_student['Student ID'], 
+                        "Face Recognition",
+                        photo_path
+                    )
+                else:
+                    st.warning("No face detected - please try again")
+        
+        elif method == "Fingerprint":
+            # Mobile fingerprint authentication
+            if st.session_state.auth_status:
+                if st.session_state.auth_status.startswith('success:'):
+                    st.success("Fingerprint authentication successful!")
+                else:
+                    st.error(f"Authentication failed: {st.session_state.auth_status.split(':')[1]}")
+                st.session_state.auth_status = None
+            
+            fingerprint_js = f"""
             <script>
-            async function handleFingerprint() {
-                try {
-                    // Check if WebAuthn is supported
-                    if (!window.PublicKeyCredential) {
+            async function authenticateFingerprint() {{
+                try {{
+                    if (!window.PublicKeyCredential) {{
                         throw new Error("WebAuthn not supported in this browser");
-                    }
+                    }}
                     
-                    // Check if platform authenticator is available
                     const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-                    if (!isAvailable) {
-                        throw new Error("Fingerprint authentication not available on this device");
-                    }
+                    if (!isAvailable) {{
+                        throw new Error("Fingerprint authentication not available");
+                    }}
                     
-                    // Create a random challenge
                     const challenge = new Uint8Array(32);
                     window.crypto.getRandomValues(challenge);
                     
-                    // Request fingerprint authentication
-                    const credential = await navigator.credentials.get({
-                        publicKey: {
+                    const credential = await navigator.credentials.get({{
+                        publicKey: {{
                             challenge: challenge,
                             rpId: window.location.hostname,
-                            allowCredentials: [{
+                            allowCredentials: [{{
                                 type: "public-key",
-                                id: new TextEncoder().encode("%s"),
+                                id: new TextEncoder().encode("{st.session_state.current_student['Student ID']}"),
                                 transports: ["internal"]
-                            }],
+                            }}],
                             userVerification: "required",
                             timeout: 60000
-                        }
-                    });
+                        }}
+                    }});
                     
-                    // Authentication successful
-                    window.parent.postMessage({
-                        type: 'fingerprintAuth',
+                    // Send success message to Streamlit
+                    const message = {{
+                        isStreamlitMessage: true,
+                        type: "fingerprintAuth",
                         success: true,
-                        studentId: "%s"
-                    }, '*');
-                    
-                } catch (error) {
-                    window.parent.postMessage({
-                        type: 'fingerprintAuth',
+                        studentId: "{st.session_state.current_student['Student ID']}"
+                    }};
+                    window.parent.postMessage(message, "*");
+                }} catch (error) {{
+                    // Send error message to Streamlit
+                    const message = {{
+                        isStreamlitMessage: true,
+                        type: "fingerprintAuth",
                         success: false,
                         error: error.message
-                    }, '*');
-                }
-            }
+                    }};
+                    window.parent.postMessage(message, "*");
+                }}
+            }}
+            
+            // Listen for Streamlit messages
+            window.addEventListener("message", (event) => {{
+                if (event.data === "triggerAuth") {{
+                    authenticateFingerprint();
+                }}
+            }});
             </script>
-            """ % (st.session_state.current_student['Student ID'], 
-                   st.session_state.current_student['Student ID'])
+            """
             
             html(fingerprint_js)
             
             if st.button("Authenticate with Fingerprint"):
-                html("<script>handleFingerprint()</script>")
+                st.session_state.auth_status = "pending"
+                html("<script>window.postMessage('triggerAuth', '*');</script>")
                 
-                # Display status message
-                auth_status = st.empty()
-                auth_status.info("Waiting for fingerprint authentication...")
-                
-                # JavaScript message handler
-                js_message_handler = """
-                <script>
-                window.addEventListener('message', (event) => {
-                    if (event.data.type === 'fingerprintAuth') {
-                        if (event.data.success) {
-                            window.parent.postMessage({
-                                type: 'streamlit:setComponentValue',
-                                value: 'success:' + event.data.studentId
-                            }, '*');
-                        } else {
-                            window.parent.postMessage({
-                                type: 'streamlit:setComponentValue',
-                                value: 'error:' + event.data.error
-                            }, '*');
-                        }
-                    }
-                });
-                </script>
-                """
-                html(js_message_handler)
-                
-                # Handle the authentication result
-                if 'fingerprint_auth_result' in st.session_state:
-                    result = st.session_state.fingerprint_auth_result
-                    if result.startswith('success:'):
-                        student_id = result.split(':')[1]
-                        record_attendance(student_id, "Fingerprint (Mobile)")
-                        auth_status.success("Fingerprint authentication successful!")
-                    else:
-                        error_msg = result.split(':')[1]
-                        auth_status.error(f"Authentication failed: {error_msg}")
-                    del st.session_state.fingerprint_auth_result
-
-# Add this to handle the JavaScript messages
-def update_auth_result():
-    if 'fingerprint_auth_result' in st.query_params:
-        st.session_state.fingerprint_auth_result = st.query_params['fingerprint_auth_result'][0]
-        st.rerun()
-
-update_auth_result()
-        
-        elif method == "Fingerprint":
-            # Mobile fingerprint authentication
-            html(f"""
-            <script>
-            async function handleAuth() {{
-                const result = await authenticateFingerprint('{st.session_state.current_student['Student ID']}');
-                if (result.success) {{
-                    window.parent.postMessage({{
-                        type: 'fingerprintAuth',
-                        success: true,
-                        studentId: result.studentId
-                    }}, '*');
-                }} else {{
-                    alert("Fingerprint authentication failed: " + result.error);
-                }}
-            }}
-            
-            async function handleRegister() {{
-                const result = await registerFingerprint('{st.session_state.current_student['Student ID']}');
-                if (result.success) {{
-                    window.parent.postMessage({{
-                        type: 'fingerprintRegister',
-                        success: true,
-                        studentId: result.studentId
-                    }}, '*');
-                }} else {{
-                    alert("Fingerprint registration failed: " + result.error);
-                }}
-            }}
-            </script>
-            {fingerprint_js}
-            """, height=0)
-            
-            # Fixed line - using .get() method with default value
-            if not st.session_state.current_student.get('FingerprintRegistered', False):
-                st.info("Register your fingerprint for future logins")
-                if st.button("Register Fingerprint"):
-                    html("<script>handleRegister()</script>")
-            else:
-                st.info("Authenticate with your fingerprint")
-                if st.button("Authenticate with Fingerprint"):
-                    html("<script>handleAuth()</script>")
-            
             # USB fingerprint scanner fallback
             if fingerprint_scanner_connected:
                 st.info("USB fingerprint scanner detected")
                 if st.button("Use USB Fingerprint Scanner"):
-                    # Simulate USB fingerprint verification
                     record_attendance(
                         st.session_state.current_student['Student ID'], 
                         "Fingerprint (USB)",
@@ -427,39 +319,35 @@ update_auth_result()
                 href_zip = f'<a href="data:application/zip;base64,{b64_zip}" download="attendance_photos.zip">Download All Photos</a>'
                 st.markdown(href_zip, unsafe_allow_html=True)
 
-# Handle fingerprint authentication results
+# Handle fingerprint authentication messages
+def handle_fingerprint_auth():
+    query_params = st.query_params
+    if 'fingerprint_auth' in query_params:
+        result = query_params['fingerprint_auth'][0]
+        if result.startswith('success:'):
+            student_id = result.split(':')[1]
+            record_attendance(student_id, "Fingerprint (Mobile)")
+            st.session_state.auth_status = f"success:{student_id}"
+        else:
+            error_msg = result.split(':')[1]
+            st.session_state.auth_status = f"error:{error_msg}"
+        st.rerun()
+
+handle_fingerprint_auth()
+
+# JavaScript message handler
 html("""
 <script>
 window.addEventListener('message', (event) => {
-    if (event.data.type === 'fingerprintAuth' && event.data.success) {
+    if (event.data.isStreamlitMessage && event.data.type === 'fingerprintAuth') {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", window.location.href, true);
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xhr.send(`fingerprint_auth=${event.data.studentId}`);
-    }
-    if (event.data.type === 'fingerprintRegister' && event.data.success) {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", window.location.href, true);
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xhr.send(`fingerprint_register=${event.data.studentId}`);
+        if (event.data.success) {
+            xhr.open("POST", window.location.href + "?fingerprint_auth=success:" + event.data.studentId, true);
+        } else {
+            xhr.open("POST", window.location.href + "?fingerprint_auth=error:" + encodeURIComponent(event.data.error), true);
+        }
+        xhr.send();
     }
 });
 </script>
 """)
-
-# Handle fingerprint authentication from JavaScript
-if 'fingerprint_auth' in st.query_params:
-    student_id = st.query_params['fingerprint_auth']
-    if student_id == st.session_state.current_student['Student ID']:
-        record_attendance(student_id, "Fingerprint (Mobile)")
-
-if 'fingerprint_register' in st.query_params:
-    student_id = st.query_params['fingerprint_register']
-    if student_id == st.session_state.current_student['Student ID']:
-        st.session_state.student_data.loc[
-            st.session_state.student_data['Student ID'] == student_id,
-            'FingerprintRegistered'
-        ] = True
-        st.session_state.student_data.to_csv('data/students.csv', index=False)
-        st.success("Fingerprint registered successfully!")
-        st.rerun()
