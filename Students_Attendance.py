@@ -222,106 +222,106 @@ else:
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
 
     with tab1:
-    st.header("Mark Attendance")
-    method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
-    
-    if method == "Fingerprint":
-        # Enhanced mobile fingerprint authentication
-        fingerprint_js = """
-        <script>
-        async function handleFingerprint() {
-            try {
-                // Check if WebAuthn is supported
-                if (!window.PublicKeyCredential) {
-                    throw new Error("WebAuthn not supported in this browser");
+        st.header("Mark Attendance")
+        method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
+        
+        if method == "Fingerprint":
+            # Enhanced mobile fingerprint authentication
+            fingerprint_js = """
+            <script>
+            async function handleFingerprint() {
+                try {
+                    // Check if WebAuthn is supported
+                    if (!window.PublicKeyCredential) {
+                        throw new Error("WebAuthn not supported in this browser");
+                    }
+                    
+                    // Check if platform authenticator is available
+                    const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                    if (!isAvailable) {
+                        throw new Error("Fingerprint authentication not available on this device");
+                    }
+                    
+                    // Create a random challenge
+                    const challenge = new Uint8Array(32);
+                    window.crypto.getRandomValues(challenge);
+                    
+                    // Request fingerprint authentication
+                    const credential = await navigator.credentials.get({
+                        publicKey: {
+                            challenge: challenge,
+                            rpId: window.location.hostname,
+                            allowCredentials: [{
+                                type: "public-key",
+                                id: new TextEncoder().encode("%s"),
+                                transports: ["internal"]
+                            }],
+                            userVerification: "required",
+                            timeout: 60000
+                        }
+                    });
+                    
+                    // Authentication successful
+                    window.parent.postMessage({
+                        type: 'fingerprintAuth',
+                        success: true,
+                        studentId: "%s"
+                    }, '*');
+                    
+                } catch (error) {
+                    window.parent.postMessage({
+                        type: 'fingerprintAuth',
+                        success: false,
+                        error: error.message
+                    }, '*');
                 }
+            }
+            </script>
+            """ % (st.session_state.current_student['Student ID'], 
+                   st.session_state.current_student['Student ID'])
+            
+            html(fingerprint_js)
+            
+            if st.button("Authenticate with Fingerprint"):
+                html("<script>handleFingerprint()</script>")
                 
-                // Check if platform authenticator is available
-                const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-                if (!isAvailable) {
-                    throw new Error("Fingerprint authentication not available on this device");
-                }
+                # Display status message
+                auth_status = st.empty()
+                auth_status.info("Waiting for fingerprint authentication...")
                 
-                // Create a random challenge
-                const challenge = new Uint8Array(32);
-                window.crypto.getRandomValues(challenge);
-                
-                // Request fingerprint authentication
-                const credential = await navigator.credentials.get({
-                    publicKey: {
-                        challenge: challenge,
-                        rpId: window.location.hostname,
-                        allowCredentials: [{
-                            type: "public-key",
-                            id: new TextEncoder().encode("%s"),
-                            transports: ["internal"]
-                        }],
-                        userVerification: "required",
-                        timeout: 60000
+                # JavaScript message handler
+                js_message_handler = """
+                <script>
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'fingerprintAuth') {
+                        if (event.data.success) {
+                            window.parent.postMessage({
+                                type: 'streamlit:setComponentValue',
+                                value: 'success:' + event.data.studentId
+                            }, '*');
+                        } else {
+                            window.parent.postMessage({
+                                type: 'streamlit:setComponentValue',
+                                value: 'error:' + event.data.error
+                            }, '*');
+                        }
                     }
                 });
+                </script>
+                """
+                html(js_message_handler)
                 
-                // Authentication successful
-                window.parent.postMessage({
-                    type: 'fingerprintAuth',
-                    success: true,
-                    studentId: "%s"
-                }, '*');
-                
-            } catch (error) {
-                window.parent.postMessage({
-                    type: 'fingerprintAuth',
-                    success: false,
-                    error: error.message
-                }, '*');
-            }
-        }
-        </script>
-        """ % (st.session_state.current_student['Student ID'], 
-               st.session_state.current_student['Student ID'])
-        
-        html(fingerprint_js)
-        
-        if st.button("Authenticate with Fingerprint"):
-            html("<script>handleFingerprint()</script>")
-            
-            # Display status message
-            auth_status = st.empty()
-            auth_status.info("Waiting for fingerprint authentication...")
-            
-            # JavaScript message handler
-            js_message_handler = """
-            <script>
-            window.addEventListener('message', (event) => {
-                if (event.data.type === 'fingerprintAuth') {
-                    if (event.data.success) {
-                        window.parent.postMessage({
-                            type: 'streamlit:setComponentValue',
-                            value: 'success:' + event.data.studentId
-                        }, '*');
-                    } else {
-                        window.parent.postMessage({
-                            type: 'streamlit:setComponentValue',
-                            value: 'error:' + event.data.error
-                        }, '*');
-                    }
-                }
-            });
-            </script>
-            """
-            html(js_message_handler)
-            
-            # Handle the authentication result
-            if 'fingerprint_auth_result' in st.session_state:
-                result = st.session_state.fingerprint_auth_result
-                if result.startswith('success:'):
-                    student_id = result.split(':')[1]
-                    record_attendance(student_id, "Fingerprint (Mobile)")
-                    auth_status.success("Fingerprint authentication successful!")
-                else:
-                    error_msg = result.split(':')[1]
-                    auth_status.error(f"Authentication failed: {error_msg}")
-                del st.session_state.fingerprint_auth_result
+                # Handle the authentication result
+                if 'fingerprint_auth_result' in st.session_state:
+                    result = st.session_state.fingerprint_auth_result
+                    if result.startswith('success:'):
+                        student_id = result.split(':')[1]
+                        record_attendance(student_id, "Fingerprint (Mobile)")
+                        auth_status.success("Fingerprint authentication successful!")
+                    else:
+                        error_msg = result.split(':')[1]
+                        auth_status.error(f"Authentication failed: {error_msg}")
+                    del st.session_state.fingerprint_auth_result
 
 # Add this to handle the JavaScript messages
 def update_auth_result():
