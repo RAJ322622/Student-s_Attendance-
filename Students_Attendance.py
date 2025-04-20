@@ -8,7 +8,9 @@ import base64
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from streamlit.components.v1 import html
+import fpylll  # For fingerprint processing (example library)
+import platform
+import subprocess
 
 # Initialize face detector
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -18,13 +20,13 @@ if 'attendance' not in st.session_state:
     if os.path.exists('data/attendance.csv'):
         st.session_state.attendance = pd.read_csv('data/attendance.csv')
     else:
-        st.session_state.attendance = pd.DataFrame(columns=['Student ID', 'Name', 'Email', 'Time', 'Method', 'Photo Path'])
+        st.session_state.attendance = pd.DataFrame(columns=['Student ID', 'Name', 'Email', 'Time', 'Method', 'Photo Path', 'FingerprintID'])
 
 if 'student_data' not in st.session_state:
     if os.path.exists('data/students.csv'):
         st.session_state.student_data = pd.read_csv('data/students.csv')
     else:
-        st.session_state.student_data = pd.DataFrame(columns=['Student ID', 'Name', 'Email', 'Password'])
+        st.session_state.student_data = pd.DataFrame(columns=['Student ID', 'Name', 'Email', 'Password', 'FingerprintRegistered'])
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -32,46 +34,43 @@ if 'logged_in' not in st.session_state:
 # Create directories
 os.makedirs('data/faces', exist_ok=True)
 os.makedirs('data/attendance_photos', exist_ok=True)
+os.makedirs('data/fingerprints', exist_ok=True)
 
 # Email configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-EMAIL_ADDRESS = "rajkumar.k0322@gmail.com"
-EMAIL_PASSWORD = "kcxf lzrq xnts xlng"
+EMAIL_ADDRESS = "your_email@gmail.com"  # Replace with your email
+EMAIL_PASSWORD = "your_password"       # Replace with your password
 
-# Fingerprint authentication JavaScript
-fingerprint_js = """
-<script>
-async function authenticateFingerprint(studentId) {
-    try {
-        const credential = await navigator.credentials.get({
-            publicKey: {
-                challenge: new Uint8Array([1,2,3,4,5,6,7,8]),
-                rpId: window.location.hostname,
-                allowCredentials: [{
-                    type: 'public-key',
-                    id: new TextEncoder().encode(studentId),
-                    transports: ['internal']
-                }],
-                userVerification: 'required'
-            }
-        });
-        
-        window.parent.postMessage({
-            type: 'fingerprintAuth',
-            success: true,
-            studentId: studentId
-        }, '*');
-    } catch (error) {
-        window.parent.postMessage({
-            type: 'fingerprintAuth',
-            success: false,
-            error: error.message
-        }, '*');
-    }
-}
-</script>
-"""
+# Fingerprint scanner setup
+def check_fingerprint_scanner():
+    """Check if a fingerprint scanner is connected"""
+    try:
+        if platform.system() == 'Windows':
+            # Windows - check for connected USB devices
+            result = subprocess.run(['powershell', 'Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match "USB" }'], 
+                                  capture_output=True, text=True)
+            return "Fingerprint" in result.stdout
+        else:
+            # Linux/Mac - check for connected USB devices
+            result = subprocess.run(['lsusb'], capture_output=True, text=True)
+            return "Fingerprint" in result.stdout
+    except:
+        return False
+
+def enroll_fingerprint(student_id):
+    """Simulate fingerprint enrollment"""
+    # In a real implementation, this would interface with the fingerprint scanner SDK
+    fingerprint_file = f"data/fingerprints/{student_id}.fpr"
+    with open(fingerprint_file, 'w') as f:
+        f.write(f"Fingerprint data for {student_id}")
+    return True
+
+def verify_fingerprint(student_id):
+    """Simulate fingerprint verification"""
+    # In a real implementation, this would interface with the fingerprint scanner SDK
+    fingerprint_file = f"data/fingerprints/{student_id}.fpr"
+    return os.path.exists(fingerprint_file)
 
 # Page config
 st.set_page_config(page_title="Student Attendance System", layout="wide")
@@ -111,7 +110,7 @@ def detect_faces(image):
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
     return len(faces) > 0
 
-def record_attendance(student_id, method, photo_path=None):
+def record_attendance(student_id, method, photo_path=None, fingerprint_id=None):
     student_info = st.session_state.student_data[
         st.session_state.student_data['Student ID'] == student_id
     ]
@@ -121,14 +120,17 @@ def record_attendance(student_id, method, photo_path=None):
         student_email = student_info['Email'].values[0]
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        new_entry = pd.DataFrame([[student_id, student_name, student_email, now, method, photo_path]], 
-                              columns=['Student ID', 'Name', 'Email', 'Time', 'Method', 'Photo Path'])
+        new_entry = pd.DataFrame([[student_id, student_name, student_email, now, method, photo_path, fingerprint_id]], 
+                              columns=['Student ID', 'Name', 'Email', 'Time', 'Method', 'Photo Path', 'FingerprintID'])
         st.session_state.attendance = pd.concat([st.session_state.attendance, new_entry], ignore_index=True)
         st.session_state.attendance.to_csv('data/attendance.csv', index=False)
         st.success(f"Attendance recorded for {student_name}")
         send_email(student_email, student_name, now)
     else:
         st.warning("Student not found")
+
+# Check for fingerprint scanner
+fingerprint_scanner_connected = check_fingerprint_scanner()
 
 # Login/Registration System
 if not st.session_state.logged_in:
@@ -162,8 +164,8 @@ if not st.session_state.logged_in:
                     if new_id in st.session_state.student_data['Student ID'].values:
                         st.error("Student ID already exists")
                     else:
-                        new_student = pd.DataFrame([[new_id, new_name, new_email, new_password]], 
-                                                 columns=['Student ID', 'Name', 'Email', 'Password'])
+                        new_student = pd.DataFrame([[new_id, new_name, new_email, new_password, False]], 
+                                                 columns=['Student ID', 'Name', 'Email', 'Password', 'FingerprintRegistered'])
                         st.session_state.student_data = pd.concat([st.session_state.student_data, new_student], ignore_index=True)
                         st.session_state.student_data.to_csv('data/students.csv', index=False)
                         st.success("Registration successful! Please login.")
@@ -207,12 +209,33 @@ else:
                     st.warning("No face detected - please try again")
         
         elif method == "Fingerprint":
-            html(f"""
-            <button onclick="authenticateFingerprint('{st.session_state.current_student['Student ID']}')">
-                Authenticate with Fingerprint
-            </button>
-            {fingerprint_js}
-            """, height=50)
+            if not fingerprint_scanner_connected:
+                st.warning("No fingerprint scanner detected. Please connect a USB fingerprint scanner.")
+            else:
+                st.info("Fingerprint scanner detected and ready")
+                
+                # Check if student has registered fingerprint
+                if not st.session_state.current_student['FingerprintRegistered']:
+                    if st.button("Register Fingerprint"):
+                        if enroll_fingerprint(st.session_state.current_student['Student ID']):
+                            st.session_state.student_data.loc[
+                                st.session_state.student_data['Student ID'] == st.session_state.current_student['Student ID'],
+                                'FingerprintRegistered'
+                            ] = True
+                            st.session_state.student_data.to_csv('data/students.csv', index=False)
+                            st.success("Fingerprint registered successfully!")
+                        else:
+                            st.error("Fingerprint registration failed")
+                else:
+                    if st.button("Authenticate with Fingerprint"):
+                        if verify_fingerprint(st.session_state.current_student['Student ID']):
+                            record_attendance(
+                                st.session_state.current_student['Student ID'], 
+                                "Fingerprint",
+                                fingerprint_id=st.session_state.current_student['Student ID']
+                            )
+                        else:
+                            st.error("Fingerprint verification failed")
 
     with tab2:
         st.header("Your Attendance Records")
@@ -259,24 +282,3 @@ else:
                 b64_zip = base64.b64encode(zip_buffer.read()).decode()
                 href_zip = f'<a href="data:application/zip;base64,{b64_zip}" download="attendance_photos.zip">Download All Photos</a>'
                 st.markdown(href_zip, unsafe_allow_html=True)
-
-# Handle fingerprint authentication results
-html("""
-<script>
-window.addEventListener('message', (event) => {
-    if (event.data.type === 'fingerprintAuth' && event.data.success) {
-        const studentId = event.data.studentId;
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", window.location.href, true);
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xhr.send(`fingerprint_auth=${studentId}`);
-    }
-});
-</script>
-""")
-
-# Handle fingerprint authentication from JavaScript
-if 'fingerprint_auth' in st.query_params:
-    student_id = st.query_params['fingerprint_auth']
-    if student_id == st.session_state.current_student['Student ID']:
-        record_attendance(student_id, "Fingerprint")
