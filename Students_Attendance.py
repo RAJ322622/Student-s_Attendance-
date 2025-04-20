@@ -9,6 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from streamlit.components.v1 import html
+import time
 
 # Initialize session state for authentication status
 if 'auth_status' not in st.session_state:
