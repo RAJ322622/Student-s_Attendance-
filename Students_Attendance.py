@@ -282,7 +282,8 @@ else:
             {fingerprint_js}
             """, height=0)
             
-            if not st.session_state.current_student['FingerprintRegistered']:
+            # Fixed line - using .get() method with default value
+            if not st.session_state.current_student.get('FingerprintRegistered', False):
                 st.info("Register your fingerprint for future logins")
                 if st.button("Register Fingerprint"):
                     html("<script>handleRegister()</script>")
