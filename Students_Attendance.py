@@ -176,25 +176,18 @@ else:
                     st.warning("No face detected - please try again")
         
         elif method == "Fingerprint":
-            if 'fingerprint_attempts' not in st.session_state:
-                st.session_state.fingerprint_attempts = 0
             
-            st.info("Press the button below and place your finger on the sensor 2 times")
+            st.info("Touch your device's fingerprint sensor once to verify")
             
-            if st.button("Scan Fingerprint", key="fingerprint_btn"):
-                st.session_state.fingerprint_attempts = 1
-                
-                if st.session_state.fingerprint_attempts < 2:
-                    st.warning(f"Scan attempt {st.session_state.fingerprint_attempts}/2 - Keep your finger on the sensor")
-                    with st.spinner("Scanning..."):
-                        time.sleep(1)  # Simulate scanning delay
-                else:
-                    # After 3 attempts, record attendance
+            if st.button("Scan Fingerprint Now", key="fingerprint_btn"):
+                with st.spinner("Verifying fingerprint..."):
+                    time.sleep(1)  # Brief delay to simulate scanning
+                    
+                    # Records attendance immediately after one touch
                     record_attendance(
                         st.session_state.current_student['Student ID'], 
                         "Fingerprint"
                     )
-                    st.session_state.fingerprint_attempts = 0  # Reset counter
                     st.success("Fingerprint verified successfully!")
 
     with tab2:
