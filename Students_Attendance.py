@@ -45,8 +45,8 @@ os.makedirs('data/faces', exist_ok=True)
 os.makedirs('data/attendance_photos', exist_ok=True)
 
 # Email configuration (replace with your actual email settings)
-EMAIL_ADDRESS = "your_email@example.com"
-EMAIL_PASSWORD = "your_email_password"
+EMAIL_ADDRESS = "rajkumar.k0322@gmail.com"
+EMAIL_PASSWORD = "kcxf lzrq xnts xlng"
 SMTP_SERVER = "smtp.example.com"
 SMTP_PORT = 587
 
