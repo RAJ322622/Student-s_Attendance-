@@ -181,21 +181,21 @@ else:
             
             st.info("Press the button below and place your finger on the sensor 2 times")
             
-            if st.button("Scan Fingerprint", key="fingerprint_btn"):
-                st.session_state.fingerprint_attempts += 1
-                
-                if st.session_state.fingerprint_attempts < 3:
-                    st.warning(f"Scan attempt {st.session_state.fingerprint_attempts}/2 - Keep your finger on the sensor")
-                    with st.spinner("Scanning..."):
-                        time.sleep(1)  # Simulate scanning delay
-                else:
-                    # After 3 attempts, record attendance
-                    record_attendance(
-                        st.session_state.current_student['Student ID'], 
-                        "Fingerprint"
-                    )
-                    st.session_state.fingerprint_attempts = 0  # Reset counter
-                    st.success("Fingerprint verified successfully!")
+            if st.button("Scan Fingerprint Now"):
+                with st.spinner("Verifying fingerprint..."):
+                    try:
+                        # Replace with actual hardware SDK calls
+                        result = fingerprint_scanner.verify()
+                        
+                        if result.success:
+                            st.session_state.fingerprint_verified = True
+                            record_attendance(student_id, "Fingerprint")
+                            st.success("✅ Fingerprint verified successfully!")
+                        else:
+                            st.error(f"❌ Verification failed: {result.message}")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Scanner error: {str(e)}")
 
     with tab2:
         st.header("Your Attendance Records")
