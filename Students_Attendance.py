@@ -179,8 +179,8 @@ else:
         elif method == "Fingerprint":
             st.markdown("""
             <div id="fingerprint-container" style="text-align: center;">
-                <h3>Place finger on sensor</h3>
-                <div id="sensor-feedback" style="
+                <h3>Place and hold your finger on the sensor</h3>
+                <div id="sensor" style="
                     width: 120px;
                     height: 120px;
                     margin: 0 auto;
@@ -190,27 +190,88 @@ else:
                     align-items: center;
                     justify-content: center;
                     font-size: 40px;
-                ">🖐️</div>
-                <p id="status">Waiting for fingerprint...</p>
+                    cursor: pointer;
+                    user-select: none;
+                " onmousedown="startScan()" onmouseup="stopScan()" ontouchstart="startScan()" ontouchend="stopScan()">🖐️</div>
+                <p id="status">Press and hold your finger on the sensor</p>
             </div>
-            """, unsafe_allow_html=True)
+        
+            <script>
+            let scanTimer;
+            let isScanning = false;
             
-            # Simulate fingerprint authentication with a button
-            if st.button("Simulate Fingerprint Authentication"):
-                st.markdown("""
-                <script>
-                document.getElementById('sensor-feedback').innerHTML = "✅";
-                document.getElementById('sensor-feedback').style.background = "#4CAF50";
-                document.getElementById('status').textContent = "Verified!";
-                </script>
-                """, unsafe_allow_html=True)
+            function startScan() {
+                if (isScanning) return;
+                isScanning = true;
+                const sensor = document.getElementById('sensor');
+                const status = document.getElementById('status');
                 
-                # Record attendance after successful simulation
-                record_attendance(
-                    st.session_state.current_student['Student ID'],
-                    "Fingerprint"
-                )
-                st.success("Fingerprint authentication successful!")
+                sensor.innerHTML = "👆";
+                sensor.style.background = "#FFC107";
+                status.textContent = "Scanning fingerprint...";
+                
+                // Simulate scan time (2-3 seconds)
+                scanTimer = setTimeout(() => {
+                    if (isScanning) {  // Only proceed if still scanning
+                        // 80% chance of success for realism
+                        if (Math.random() < 0.8) {
+                            sensor.innerHTML = "✅";
+                            sensor.style.background = "#4CAF50";
+                            status.textContent = "Fingerprint verified!";
+                            
+                            // Report success to Streamlit
+                            window.parent.postMessage({
+                                type: 'fingerprintResult',
+                                success: true,
+                                studentId: '""" + st.session_state.current_student['Student ID'] + """'
+                            }, '*');
+                        } else {
+                            sensor.innerHTML = "❌";
+                            sensor.style.background = "#FF5252";
+                            status.textContent = "Scan failed. Try again.";
+                        }
+                        isScanning = false;
+                    }
+                }, 2000 + Math.random() * 1000);  // Random scan time between 2-3 seconds
+            }
+            
+            function stopScan() {
+                isScanning = false;
+                clearTimeout(scanTimer);
+                const sensor = document.getElementById('sensor');
+                const status = document.getElementById('status');
+                
+                sensor.innerHTML = "🖐️";
+                sensor.style.background = "#e0e0e0";
+                status.textContent = "Press and hold your finger on the sensor";
+            }
+            </script>
+            """, unsafe_allow_html=True)
+        
+            # Handle the fingerprint result
+            components.html("""
+            <script>
+            window.addEventListener('message', (event) => {
+                if (event.data.type === 'fingerprintResult' && event.data.success) {
+                    const params = new URLSearchParams();
+                    params.append('fingerprint_success', event.data.success);
+                    params.append('student_id', event.data.studentId);
+                    window.location.search = params.toString();
+                }
+            });
+            </script>
+            """, height=0)
+        
+            # Process the result
+            params = st.experimental_get_query_params()
+            if 'fingerprint_success' in params:
+                if params['fingerprint_success'][0] == 'true':
+                    record_attendance(
+                        st.session_state.current_student['Student ID'],
+                        "Fingerprint"
+                    )
+                    st.experimental_set_query_params()
+                    st.rerun()
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
