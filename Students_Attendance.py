@@ -9,7 +9,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from streamlit.components.v1 import html
-import json
 
 # Initialize face detector
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -34,78 +33,92 @@ if 'logged_in' not in st.session_state:
 os.makedirs('data/faces', exist_ok=True)
 os.makedirs('data/attendance_photos', exist_ok=True)
 
-# Email configuration
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-EMAIL_ADDRESS = "rajkumar.k0322@gmail.com"
-EMAIL_PASSWORD = "kcxf lzrq xnts xlng"
+# Fingerprint Authentication Components
+def show_fingerprint_auth():
+    """Displays appropriate fingerprint auth method based on platform"""
+    if st.session_state.get('is_mobile', False):
+        st.warning("For full fingerprint functionality, please use our mobile app")
+        st.markdown("[Download Android App](#) | [Download iOS App](#)")
+        
+        # QR code to download app
+        st.image("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://yourapp.com/download")
+        
+        # Fallback option
+        if st.checkbox("I don't have the mobile app"):
+            show_webauthn_fallback()
+    else:
+        show_webauthn_implementation()
 
-# Fingerprint authentication JavaScript
-fingerprint_js = """
-<script>
-async function authenticateFingerprint(studentId) {
-    try {
-        const credential = await navigator.credentials.get({
-            publicKey: {
-                challenge: new Uint8Array([1,2,3,4,5,6,7,8]),
-                rpId: window.location.hostname,
-                allowCredentials: [{
-                    type: 'public-key',
-                    id: new TextEncoder().encode(studentId),
-                    transports: ['internal']
-                }],
-                userVerification: 'required'
-            }
-        });
-        
-        window.parent.postMessage({
-            type: 'fingerprintAuth',
-            success: true,
-            studentId: studentId
-        }, '*');
-    } catch (error) {
-        window.parent.postMessage({
-            type: 'fingerprintAuth',
-            success: false,
-            error: error.message
-        }, '*');
-    }
-}
-</script>
-"""
+def show_webauthn_implementation():
+    """WebAuthn implementation for browsers that support it"""
+    st.info("Using browser fingerprint authentication")
+    student_id = st.session_state.current_student['Student ID']
+    
+    html(f"""
+    <script>
+    async function authenticate() {{
+        try {{
+            // WebAuthn implementation
+            const credential = await navigator.credentials.get({{
+                publicKey: {{
+                    challenge: new Uint8Array([1,2,3,4,5,6,7,8]),
+                    rpId: window.location.hostname,
+                    allowCredentials: [{{
+                        type: 'public-key',
+                        id: new TextEncoder().encode('{student_id}'),
+                        transports: ['internal']
+                    }}],
+                    userVerification: 'required'
+                }}
+            }});
+            
+            window.parent.postMessage({{
+                type: 'fingerprintAuth',
+                success: true,
+                studentId: '{student_id}'
+            }}, '*');
+        }} catch (error) {{
+            window.parent.postMessage({{
+                type: 'fingerprintAuth',
+                success: false,
+                error: error.message
+            }}, '*');
+        }}
+    }}
+    </script>
+    
+    <button onclick="authenticate()" style="
+        background-color: #4CAF50;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 8px;
+    ">
+        Authenticate with Fingerprint
+    </button>
+    """, height=100)
 
-# Page config
-st.set_page_config(page_title="Student Attendance System", layout="wide")
-st.title("Student Attendance System")
+def show_webauthn_fallback():
+    """Fallback for browsers without WebAuthn support"""
+    st.warning("Your browser doesn't support fingerprint authentication")
+    st.info("Please use face recognition or switch to a supported browser:")
+    st.markdown("""
+    - Chrome 70+ (Android/Mac/Windows)
+    - Edge 18+
+    - Safari 14+ (iOS/Mac)
+    """)
 
-# Helper functions
-def send_email(to_email, student_name, time):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_ADDRESS
-        msg['To'] = to_email
-        msg['Subject'] = "Attendance Notification"
-        
-        body = f"""
-        <html>
-            <body>
-                <p>Dear {student_name},</p>
-                <p>Your attendance has been recorded at {time}.</p>
-                <p>Thank you!</p>
-            </body>
-        </html>
-        """
-        
-        msg.attach(MIMEText(body, 'html'))
-        
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        st.error(f"Email failed: {str(e)}")
-        return False
+# Mobile detection (simplified)
+def check_mobile():
+    user_agent = st.query_params.get('user_agent', '')
+    return any(m in user_agent.lower() for m in ['mobile', 'android', 'iphone'])
+
 
 def detect_faces(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -180,32 +193,39 @@ else:
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
 
     with tab1:
-        st.header("Mark Attendance")
-        method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
+    st.header("Mark Attendance")
+    method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
+    
+    if method == "Face Recognition":
+        # [Your existing face recognition code...]
         
-        if method == "Face Recognition":
-            picture = st.camera_input("Take a picture for attendance")
-            
-            if picture:
-                # Save attendance photo with timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                photo_path = f"data/attendance_photos/{st.session_state.current_student['Student ID']}_{timestamp}.jpg"
-                with open(photo_path, "wb") as f:
-                    f.write(picture.getbuffer())
-                
-                # Convert image to OpenCV format
-                img_bytes = picture.getvalue()
-                img_array = np.frombuffer(img_bytes, np.uint8)
-                img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-                
-                if detect_faces(img):
-                    record_attendance(
-                        st.session_state.current_student['Student ID'], 
-                        "Face Recognition",
-                        photo_path
-                    )
-                else:
-                    st.warning("No face detected - please try again")
+    elif method == "Fingerprint":
+        st.session_state.is_mobile = check_mobile()
+        show_fingerprint_auth()
+
+# Handle fingerprint auth results
+html("""
+<script>
+window.addEventListener('message', (event) => {
+    if (event.data.type === 'fingerprintAuth') {
+        if (event.data.success) {
+            const studentId = event.data.studentId;
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", window.location.href, true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.send(`fingerprint_auth=${studentId}`);
+        } else {
+            alert("Fingerprint authentication failed: " + event.data.error);
+        }
+    }
+});
+</script>
+""")
+
+if 'fingerprint_auth' in st.query_params:
+    student_id = st.query_params['fingerprint_auth']
+    if st.session_state.logged_in and student_id == st.session_state.current_student['Student ID']:
+        record_attendance(student_id, "Fingerprint")
         
         elif method == "Fingerprint":
             html(f"""
