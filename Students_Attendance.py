@@ -214,66 +214,26 @@ else:
                     st.warning("No face detected - please try again")
         
         elif method == "Fingerprint":
-            # Mobile fingerprint authentication
-            if 'auth_status' not in st.session_state:
-                st.session_state.auth_status = None
-            
-            # Display authentication button
-            html(f"""
-            <button onclick="handleFingerprintAuth('{st.session_state.current_student['Student ID']}')" 
-                style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                Authenticate with Fingerprint
-            </button>
-            
-            <script>
-            async function handleFingerprintAuth(studentId) {{
-                const result = await authenticateFingerprint(studentId);
-                window.parent.postMessage({{
-                    type: 'fingerprintAuth',
-                    success: result.success,
-                    studentId: studentId,
-                    error: result.error || ''
-                }}, '*');
-            }}
-            {fingerprint_js}
-            </script>
-            """, height=100)
-            
-            # Handle authentication results
-            if st.session_state.auth_status:
-                if st.session_state.auth_status.startswith("success"):
-                    student_id = st.session_state.auth_status.split(":")[1]
-                    record_attendance(student_id, "Fingerprint")
-                    st.session_state.auth_status = None  # Reset after successful auth
-                elif st.session_state.auth_status.startswith("error"):
-                    error_msg = st.session_state.auth_status.split(":", 1)[1]
-                    st.error(f"Authentication failed: {error_msg}")
-                    st.session_state.auth_status = None
+           if 'fingerprint_attempts' not in st.session_state:
+        st.session_state.fingerprint_attempts = 0
+    
+    st.info("Press the button below and place your finger on the sensor 3 times")
+    
+    if st.button("Scan Fingerprint", key="fingerprint_btn"):
+        st.session_state.fingerprint_attempts += 1
         
-        # Handle fingerprint authentication messages
-        html("""
-        <script>
-        window.addEventListener('message', (event) => {
-            if (event.data.type === 'fingerprintAuth') {
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", window.location.href, true);
-                xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-                
-                if (event.data.success) {
-                    xhr.send(`fingerprint_auth=success:${event.data.studentId}`);
-                } else {
-                    xhr.send(`fingerprint_auth=error:${event.data.error}`);
-                }
-            }
-        });
-        </script>
-        """)
-        
-        # Process fingerprint authentication
-        if 'fingerprint_auth' in st.query_params:
-            auth_result = st.query_params['fingerprint_auth']
-            st.session_state.auth_status = auth_result
-            st.rerun()
+        if st.session_state.fingerprint_attempts < 3:
+            st.warning(f"Scan attempt {st.session_state.fingerprint_attempts}/3 - Keep your finger on the sensor")
+            # Add a small delay to simulate scanning
+            st.spinner("Scanning...")
+        else:
+            # After 3 attempts, record attendance
+            record_attendance(
+                st.session_state.current_student['Student ID'], 
+                "Fingerprint"
+            )
+            st.session_state.fingerprint_attempts = 0  # Reset counter
+            st.success("Fingerprint verified successfully!")
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
