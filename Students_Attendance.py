@@ -193,47 +193,47 @@ else:
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
 
     with tab1:
-    st.header("Mark Attendance")
-    method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
-    
-    if method == "Face Recognition":
-        # [Your existing face recognition code...]
+        st.header("Mark Attendance")
+        method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
         
-    elif method == "Fingerprint":
-        st.session_state.is_mobile = check_mobile()
-        show_fingerprint_auth()
-
-# Handle fingerprint auth results
-html("""
-<script>
-window.addEventListener('message', (event) => {
-    if (event.data.type === 'fingerprintAuth') {
-        if (event.data.success) {
-            const studentId = event.data.studentId;
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", window.location.href, true);
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-            xhr.send(`fingerprint_auth=${studentId}`);
-        } else {
-            alert("Fingerprint authentication failed: " + event.data.error);
-        }
-    }
-});
-</script>
-""")
-
-if 'fingerprint_auth' in st.query_params:
-    student_id = st.query_params['fingerprint_auth']
-    if st.session_state.logged_in and student_id == st.session_state.current_student['Student ID']:
-        record_attendance(student_id, "Fingerprint")
-        
+        if method == "Face Recognition":
+            # [Your existing face recognition code...]
+            
         elif method == "Fingerprint":
-            html(f"""
-            <button onclick="authenticateFingerprint('{st.session_state.current_student['Student ID']}')">
-                Authenticate with Fingerprint
-            </button>
-            {fingerprint_js}
-            """, height=50)
+            st.session_state.is_mobile = check_mobile()
+            show_fingerprint_auth()
+    
+    # Handle fingerprint auth results
+    html("""
+    <script>
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'fingerprintAuth') {
+            if (event.data.success) {
+                const studentId = event.data.studentId;
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", window.location.href, true);
+                xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                xhr.send(`fingerprint_auth=${studentId}`);
+            } else {
+                alert("Fingerprint authentication failed: " + event.data.error);
+            }
+        }
+    });
+    </script>
+    """)
+    
+    if 'fingerprint_auth' in st.query_params:
+        student_id = st.query_params['fingerprint_auth']
+        if st.session_state.logged_in and student_id == st.session_state.current_student['Student ID']:
+            record_attendance(student_id, "Fingerprint")
+            
+            elif method == "Fingerprint":
+                html(f"""
+                <button onclick="authenticateFingerprint('{st.session_state.current_student['Student ID']}')">
+                    Authenticate with Fingerprint
+                </button>
+                {fingerprint_js}
+                """, height=50)
 
     with tab2:
         st.header("Your Attendance Records")
