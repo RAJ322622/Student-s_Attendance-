@@ -4,18 +4,20 @@ import numpy as np
 from datetime import datetime
 import os
 import pandas as pd
-from deepface import DeepFace  # Replaced face_recognition
 import base64
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+# Initialize face detector
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Initialize session state
 if 'attendance' not in st.session_state:
     if os.path.exists('data/attendance.csv'):
         st.session_state.attendance = pd.read_csv('data/attendance.csv')
     else:
-        st.session_state.attendance = pd.DataFrame(columns=['Student ID', 'Name', 'Email', 'Time In', 'Time Out', 'Method'])
+        st.session_state.attendance = pd.DataFrame(columns=['Student ID', 'Name', 'Email', 'Time', 'Method'])
         
 if 'student_data' not in st.session_state:
     if os.path.exists('data/students.csv'):
@@ -25,13 +27,18 @@ if 'student_data' not in st.session_state:
 
 # Create data directory
 os.makedirs('data', exist_ok=True)
-os.makedirs('data/faces', exist_ok=True)
 
 # Email configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = "your_email@gmail.com"
 EMAIL_PASSWORD = "your_app_password"
+
+# Simplified face detection function
+def detect_faces(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    return len(faces) > 0
 
 # Page config
 st.set_page_config(page_title="Student Attendance System", layout="wide")
@@ -98,61 +105,40 @@ tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Por
 
 with tab1:
     st.header("Mark Attendance")
+    student_id = st.text_input("Enter your Student ID")
     picture = st.camera_input("Take a picture for attendance")
     
-    if picture:
-        # Save temp image
-        temp_img = "data/temp_attendance.jpg"
-        with open(temp_img, "wb") as f:
-            f.write(picture.getbuffer())
+    if picture and student_id:
+        # Convert image to OpenCV format
+        img_bytes = picture.getvalue()
+        img_array = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
         
-        # Find closest match in database
-        try:
-            db_path = "data/faces"
-            if os.path.exists(db_path) and len(os.listdir(db_path)) > 0:
-                df = DeepFace.find(img_path=temp_img, db_path=db_path, enforce_detection=False)
+        # Check if face is detected
+        if detect_faces(img):
+            # Check student exists
+            student_info = st.session_state.student_data[
+                st.session_state.student_data['Student ID'] == student_id
+            ]
+            
+            if not student_info.empty:
+                student_name = student_info['Name'].values[0]
+                student_email = student_info['Email'].values[0]
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
-                if len(df) > 0 and not df[0].empty:
-                    best_match = df[0].iloc[0]
-                    student_id = os.path.splitext(os.path.basename(best_match['identity']))[0]
-                    student_info = st.session_state.student_data[st.session_state.student_data['Student ID'] == student_id]
-                    
-                    if not student_info.empty:
-                        student_name = student_info['Name'].values[0]
-                        student_email = student_info['Email'].values[0]
-                        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        
-                        # Check existing attendance
-                        existing = st.session_state.attendance[
-                            (st.session_state.attendance['Student ID'] == student_id) & 
-                            (st.session_state.attendance['Time Out'].isna())
-                        ]
-                        
-                        if existing.empty:
-                            # Time In
-                            new_entry = pd.DataFrame([[student_id, student_name, student_email, now, None, "Face Recognition"]], 
-                                                  columns=['Student ID', 'Name', 'Email', 'Time In', 'Time Out', 'Method'])
-                            st.session_state.attendance = pd.concat([st.session_state.attendance, new_entry], ignore_index=True)
-                            st.success(f"Time In: {student_name} at {now}")
-                            send_email(student_email, student_name, time_in=now)
-                        else:
-                            # Time Out
-                            idx = existing.index[0]
-                            st.session_state.attendance.at[idx, 'Time Out'] = now
-                            st.success(f"Time Out: {student_name} at {now}")
-                            send_email(student_email, student_name, 
-                                     time_in=st.session_state.attendance.at[idx, 'Time In'], 
-                                     time_out=now)
-                        
-                        st.session_state.attendance.to_csv('data/attendance.csv', index=False)
-                    else:
-                        st.warning("Student not found in database")
-                else:
-                    st.warning("No matching face found")
+                # Record attendance
+                new_entry = pd.DataFrame([[student_id, student_name, student_email, now, "Face Detection"]], 
+                                      columns=['Student ID', 'Name', 'Email', 'Time', 'Method'])
+                st.session_state.attendance = pd.concat([st.session_state.attendance, new_entry], ignore_index=True)
+                st.session_state.attendance.to_csv('data/attendance.csv', index=False)
+                st.success(f"Attendance recorded for {student_name}")
+                
+                # Send email
+                send_email(student_email, student_name, time_in=now)
             else:
-                st.warning("No faces registered in database")
-        except Exception as e:
-            st.error(f"Face detection error: {str(e)}")
+                st.warning("Student ID not found")
+        else:
+            st.warning("No face detected - please try again")
 
 with tab2:
     st.header("Attendance Records")
