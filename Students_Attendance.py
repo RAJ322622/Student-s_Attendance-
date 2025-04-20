@@ -31,8 +31,8 @@ os.makedirs('data', exist_ok=True)
 # Email configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-EMAIL_ADDRESS = "your_email@gmail.com"
-EMAIL_PASSWORD = "your_app_password"
+EMAIL_ADDRESS = "rajkumar.k0322@gmail.com"
+EMAIL_PASSWORD = "kcxf lzrq xnts xlng"
 
 # Simplified face detection function
 def detect_faces(image):
