@@ -177,18 +177,115 @@ else:
         
         elif method == "Fingerprint":
             
-            st.info("Touch your device's fingerprint sensor once to verify")
             
-            if st.button("Scan Fingerprint Now", key="fingerprint_btn"):
-                with st.spinner("Verifying fingerprint..."):
-                    time.sleep(1)  # Brief delay to simulate scanning
+            st.warning("Please physically touch your device's fingerprint sensor")
+            
+            # HTML/JavaScript for real fingerprint authentication
+            fingerprint_js = """
+            <script>
+            document.getElementById('fingerprint-btn').addEventListener('click', async function() {
+                try {
+                    if (!window.PublicKeyCredential) {
+                        throw new Error("Fingerprint not supported in this browser");
+                    }
                     
-                    # Records attendance immediately after one touch
+                    const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                    if (!isAvailable) {
+                        throw new Error("No fingerprint sensor detected");
+                    }
+                    
+                    // This will trigger the device's native fingerprint prompt
+                    const credential = await navigator.credentials.get({
+                        publicKey: {
+                            challenge: new Uint8Array([1,2,3,4]),
+                            rpId: window.location.hostname,
+                            userVerification: "required"
+                        }
+                    });
+                    
+                    // Only reaches here after successful physical touch
+                    window.parent.postMessage({
+                        type: 'fingerprintSuccess',
+                        studentId: '""" + st.session_state.current_student['Student ID'] + """'
+                    }, '*');
+                    
+                } catch (error) {
+                    window.parent.postMessage({
+                        type: 'fingerprintError',
+                        error: error.message
+                    }, '*');
+                }
+            });
+            </script>
+            """
+            
+            # Add fingerprint button
+            st.markdown("""
+            <button id="fingerprint-btn" style="
+                padding: 15px 30px;
+                background: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 16px;
+                cursor: pointer;
+            ">
+            🔒 Touch Fingerprint Sensor
+            </button>
+            """, unsafe_allow_html=True)
+            
+            # Add the JavaScript
+            st.components.v1.html(fingerprint_js, height=0)
+            
+            # Status display
+            status = st.empty()
+            
+            # Handle results
+            if 'fingerprint_result' in st.session_state:
+                if st.session_state.fingerprint_result['success']:
                     record_attendance(
-                        st.session_state.current_student['Student ID'], 
+                        st.session_state.current_student['Student ID'],
                         "Fingerprint"
                     )
-                    st.success("Fingerprint verified successfully!")
+                    status.success("Verified! Attendance recorded.")
+                else:
+                    status.error(f"Error: {st.session_state.fingerprint_result['error']}")
+                del st.session_state.fingerprint_result
+        
+        # Message handler (must be at bottom)
+        st.components.v1.html("""
+        <script>
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'fingerprintSuccess') {
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", window.location.href + "?fingerprint_success=true&student_id=" + 
+                    encodeURIComponent(event.data.studentId), true);
+                xhr.send();
+            }
+            else if (event.data.type === 'fingerprintError') {
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", window.location.href + "?fingerprint_error=" + 
+                    encodeURIComponent(event.data.error), true);
+                xhr.send();
+            }
+        });
+        </script>
+        """)
+        
+        # Handle query params
+        if 'fingerprint_success' in st.query_params:
+            st.session_state.fingerprint_result = {
+                'success': True,
+                'student_id': st.query_params['student_id']
+            }
+            st.rerun()
+            
+        elif 'fingerprint_error' in st.query_params:
+            st.session_state.fingerprint_result = {
+                'success': False,
+                'error': st.query_params['fingerprint_error']
+            }
+            st.rerun()
 
     with tab2:
         st.header("Your Attendance Records")
