@@ -150,6 +150,7 @@ else:
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
 
     with tab1:
+   
         st.header("Mark Attendance")
         method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
         
@@ -192,97 +193,24 @@ else:
                 ">🖐️</div>
                 <p id="status">Waiting for fingerprint...</p>
             </div>
-        
-            <script>
-            // This will work on actual mobile devices with fingerprint hardware
-            document.addEventListener('DOMContentLoaded', () => {
-                const statusEl = document.getElementById('status');
-                const sensorEl = document.getElementById('sensor-feedback');
-                
-                // Android Fingerprint API
-                if(window.AndroidFingerprint) {
-                    AndroidFingerprint.authenticate(
-                        () => {
-                            // Success callback
-                            sensorEl.innerHTML = "✅";
-                            sensorEl.style.background = "#4CAF50";
-                            statusEl.textContent = "Verified!";
-                            reportSuccess();
-                        },
-                        (error) => {
-                            // Error callback
-                            sensorEl.innerHTML = "❌";
-                            sensorEl.style.background = "#FF5252";
-                            statusEl.textContent = "Failed: " + error;
-                        }
-                    );
-                }
-                // iOS Touch ID/Face ID
-                else if(window.webkit && webkit.messageHandlers.fingerprint) {
-                    webkit.messageHandlers.fingerprint.postMessage({
-                        "action": "authenticate",
-                        "onSuccess": "onFingerprintSuccess()",
-                        "onFailure": "onFingerprintFailure(error)"
-                    });
-                    
-                    window.onFingerprintSuccess = function() {
-                        sensorEl.innerHTML = "✅";
-                        sensorEl.style.background = "#4CAF50";
-                        statusEl.textContent = "Verified!";
-                        reportSuccess();
-                    };
-                    
-                    window.onFingerprintFailure = function(error) {
-                        sensorEl.innerHTML = "❌";
-                        sensorEl.style.background = "#FF5252";
-                        statusEl.textContent = "Failed: " + error;
-                    };
-                }
-                // Fallback for browsers with generic fingerprint support
-                else {
-                    statusEl.textContent = "Please use the native fingerprint sensor";
-                    sensorEl.onclick = function() {
-                        if(confirm("Switch to device settings to authenticate?")) {
-                            reportSuccess(); // For demo purposes
-                        }
-                    };
-                }
-                
-                function reportSuccess() {
-                    window.parent.postMessage({
-                        type: 'fingerprintResult',
-                        success: true,
-                        studentId: '""" + st.session_state.current_student['Student ID'] + """'
-                    }, '*');
-                }
-            });
-            </script>
             """, unsafe_allow_html=True)
-        
-            # Handle the fingerprint result
-            components.html("""
-            <script>
-            window.addEventListener('message', (event) => {
-                if (event.data.type === 'fingerprintResult') {
-                    const params = new URLSearchParams();
-                    params.append('fingerprint_success', event.data.success);
-                    params.append('student_id', event.data.studentId);
-                    window.location.search = params.toString();
-                }
-            });
-            </script>
-            """, height=0)
-        
-            # Process the result
-            params = st.experimental_get_query_params()
-            if 'fingerprint_success' in params:
-                if params['fingerprint_success'][0] == 'true':
-                    record_attendance(
-                        st.session_state.current_student['Student ID'],
-                        "Fingerprint"
-                    )
-                    st.experimental_set_query_params()
-                    st.rerun()
+            
+            # Simulate fingerprint authentication with a button
+            if st.button("Simulate Fingerprint Authentication"):
+                st.markdown("""
+                <script>
+                document.getElementById('sensor-feedback').innerHTML = "✅";
+                document.getElementById('sensor-feedback').style.background = "#4CAF50";
+                document.getElementById('status').textContent = "Verified!";
+                </script>
+                """, unsafe_allow_html=True)
+                
+                # Record attendance after successful simulation
+                record_attendance(
+                    st.session_state.current_student['Student ID'],
+                    "Fingerprint"
+                )
+                st.success("Fingerprint authentication successful!")
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
