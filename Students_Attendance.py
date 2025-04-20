@@ -215,25 +215,25 @@ else:
         
         elif method == "Fingerprint":
            if 'fingerprint_attempts' not in st.session_state:
-        st.session_state.fingerprint_attempts = 0
-    
-    st.info("Press the button below and place your finger on the sensor 3 times")
-    
-    if st.button("Scan Fingerprint", key="fingerprint_btn"):
-        st.session_state.fingerprint_attempts += 1
+            st.session_state.fingerprint_attempts = 0
         
-        if st.session_state.fingerprint_attempts < 3:
-            st.warning(f"Scan attempt {st.session_state.fingerprint_attempts}/3 - Keep your finger on the sensor")
-            # Add a small delay to simulate scanning
-            st.spinner("Scanning...")
-        else:
-            # After 3 attempts, record attendance
-            record_attendance(
-                st.session_state.current_student['Student ID'], 
-                "Fingerprint"
-            )
-            st.session_state.fingerprint_attempts = 0  # Reset counter
-            st.success("Fingerprint verified successfully!")
+        st.info("Press the button below and place your finger on the sensor 3 times")
+        
+        if st.button("Scan Fingerprint", key="fingerprint_btn"):
+            st.session_state.fingerprint_attempts += 1
+            
+            if st.session_state.fingerprint_attempts < 3:
+                st.warning(f"Scan attempt {st.session_state.fingerprint_attempts}/3 - Keep your finger on the sensor")
+                # Add a small delay to simulate scanning
+                st.spinner("Scanning...")
+            else:
+                # After 3 attempts, record attendance
+                record_attendance(
+                    st.session_state.current_student['Student ID'], 
+                    "Fingerprint"
+                )
+                st.session_state.fingerprint_attempts = 0  # Reset counter
+                st.success("Fingerprint verified successfully!")
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
