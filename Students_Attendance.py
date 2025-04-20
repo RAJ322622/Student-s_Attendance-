@@ -154,120 +154,125 @@ else:
 
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
 
-    with tab1:
-        st.header("Mark Attendance")
-        method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
-        
-        if method == "Face Recognition":
-            # ... (keep your existing face recognition code)
-        
-        elif method == "Fingerprint":
-            # Generate a unique key for this component
-            fingerprint_key = f"fingerprint_{st.session_state.current_student['Student ID']}"
-            
-            # Fingerprint sensor HTML/JS
-            fingerprint_js = f"""
-            <div id="fingerprint-container-{fingerprint_key}" style="text-align: center;">
-                <h3>Place and hold your finger on the sensor</h3>
-                <div id="sensor-{fingerprint_key}" style="
-                    width: 120px;
-                    height: 120px;
-                    margin: 0 auto;
-                    background: #e0e0e0;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 40px;
-                    cursor: pointer;
-                    user-select: none;
-                " onmousedown="startScan{fingerprint_key}()" onmouseup="stopScan{fingerprint_key}()" 
-                ontouchstart="startScan{fingerprint_key}()" ontouchend="stopScan{fingerprint_key}()">🖐️</div>
-                <p id="status-{fingerprint_key}">Press and hold your finger on the sensor</p>
-            </div>
+    from streamlit.components.v1 import html
+import json
+
+# ... (keep your existing imports)
+
+with tab1:
+    st.header("Mark Attendance")
+    method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
     
-            <script>
-            let scanTimer{fingerprint_key};
-            let isScanning{fingerprint_key} = false;
+    if method == "Face Recognition":
+        # ... (keep your existing face recognition code)
+    
+    elif method == "Fingerprint":
+        # Generate a unique key for this component
+        fingerprint_key = f"fingerprint_{st.session_state.current_student['Student ID']}"
+        
+        # Fingerprint sensor HTML/JS
+        fingerprint_js = f"""
+        <div id="fingerprint-container-{fingerprint_key}" style="text-align: center;">
+            <h3>Place and hold your finger on the sensor</h3>
+            <div id="sensor-{fingerprint_key}" style="
+                width: 120px;
+                height: 120px;
+                margin: 0 auto;
+                background: #e0e0e0;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 40px;
+                cursor: pointer;
+                user-select: none;
+            " onmousedown="startScan{fingerprint_key}()" onmouseup="stopScan{fingerprint_key}()" 
+            ontouchstart="startScan{fingerprint_key}()" ontouchend="stopScan{fingerprint_key}()">🖐️</div>
+            <p id="status-{fingerprint_key}">Press and hold your finger on the sensor</p>
+        </div>
+
+        <script>
+        let scanTimer{fingerprint_key};
+        let isScanning{fingerprint_key} = false;
+        
+        function startScan{fingerprint_key}() {{
+            if (isScanning{fingerprint_key}) return;
+            isScanning{fingerprint_key} = true;
+            const sensor = document.getElementById('sensor-{fingerprint_key}');
+            const status = document.getElementById('status-{fingerprint_key}');
             
-            function startScan{fingerprint_key}() {{
-                if (isScanning{fingerprint_key}) return;
-                isScanning{fingerprint_key} = true;
-                const sensor = document.getElementById('sensor-{fingerprint_key}');
-                const status = document.getElementById('status-{fingerprint_key}');
-                
-                sensor.innerHTML = "👆";
-                sensor.style.background = "#FFC107";
-                status.textContent = "Scanning fingerprint...";
-                
-                // Simulate scan time (2-3 seconds)
-                scanTimer{fingerprint_key} = setTimeout(() => {{
-                    if (isScanning{fingerprint_key}) {{
-                        // 80% chance of success for realism
-                        if (Math.random() < 0.8) {{
-                            sensor.innerHTML = "✅";
-                            sensor.style.background = "#4CAF50";
-                            status.textContent = "Fingerprint verified!";
-                            
-                            // Report success to Streamlit
-                            window.parent.postMessage({{
-                                type: 'fingerprintResult',
-                                success: true,
-                                studentId: '{st.session_state.current_student['Student ID']}'
-                            }}, '*');
-                        }} else {{
-                            sensor.innerHTML = "❌";
-                            sensor.style.background = "#FF5252";
-                            status.textContent = "Scan failed. Try again.";
-                        }}
-                        isScanning{fingerprint_key} = false;
+            sensor.innerHTML = "👆";
+            sensor.style.background = "#FFC107";
+            status.textContent = "Scanning fingerprint...";
+            
+            // Simulate scan time (2-3 seconds)
+            scanTimer{fingerprint_key} = setTimeout(() => {{
+                if (isScanning{fingerprint_key}) {{
+                    // 80% chance of success for realism
+                    if (Math.random() < 0.8) {{
+                        sensor.innerHTML = "✅";
+                        sensor.style.background = "#4CAF50";
+                        status.textContent = "Fingerprint verified!";
+                        
+                        // Report success to Streamlit
+                        window.parent.postMessage({{
+                            type: 'fingerprintResult',
+                            success: true,
+                            studentId: '{st.session_state.current_student['Student ID']}'
+                        }}, '*');
+                    }} else {{
+                        sensor.innerHTML = "❌";
+                        sensor.style.background = "#FF5252";
+                        status.textContent = "Scan failed. Try again.";
                     }}
-                }}, 2000 + Math.random() * 1000);
-            }}
+                    isScanning{fingerprint_key} = false;
+                }}
+            }}, 2000 + Math.random() * 1000);
+        }}
+        
+        function stopScan{fingerprint_key}() {{
+            isScanning{fingerprint_key} = false;
+            clearTimeout(scanTimer{fingerprint_key});
+            const sensor = document.getElementById('sensor-{fingerprint_key}');
+            const status = document.getElementById('status-{fingerprint_key}');
             
-            function stopScan{fingerprint_key}() {{
-                isScanning{fingerprint_key} = false;
-                clearTimeout(scanTimer{fingerprint_key});
-                const sensor = document.getElementById('sensor-{fingerprint_key}');
-                const status = document.getElementById('status-{fingerprint_key}');
-                
-                sensor.innerHTML = "🖐️";
-                sensor.style.background = "#e0e0e0";
-                status.textContent = "Press and hold your finger on the sensor";
-            }}
-            </script>
-            """
-            
-            # Display the fingerprint sensor
-            html(fingerprint_js)
-            
-            # JavaScript to handle communication with Streamlit
-            fingerprint_handler = """
-            <script>
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'fingerprintResult' && event.data.success) {
-                    const data = {
-                        student_id: event.data.studentId,
-                        success: event.data.success
-                    };
-                    parent.window.postMessage({
-                        type: 'streamlit:setComponentValue',
-                        value: JSON.stringify(data)
-                    }, '*');
-                }
-            });
-            </script>
-            """
-            html(fingerprint_handler)
-            
-            # Handle the fingerprint result
-            if st.session_state.get('fingerprint_auth'):
-                record_attendance(
-                    st.session_state.current_student['Student ID'],
-                    "Fingerprint"
-                )
-                del st.session_state['fingerprint_auth']
-                st.rerun()
+            sensor.innerHTML = "🖐️";
+            sensor.style.background = "#e0e0e0";
+            status.textContent = "Press and hold your finger on the sensor";
+        }}
+        </script>
+        """
+        
+        # Display the fingerprint sensor
+        html(fingerprint_js)
+        
+        # JavaScript to handle communication with Streamlit
+        fingerprint_handler = """
+        <script>
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'fingerprintResult' && event.data.success) {
+                const data = {
+                    student_id: event.data.studentId,
+                    success: event.data.success
+                };
+                parent.window.postMessage({
+                    type: 'streamlit:setComponentValue',
+                    value: JSON.stringify(data)
+                }, '*');
+            }
+        });
+        </script>
+        """
+        html(fingerprint_handler)
+        
+        # Handle the fingerprint result
+        if st.session_state.get('fingerprint_auth'):
+            record_attendance(
+                st.session_state.current_student['Student ID'],
+                "Fingerprint"
+            )
+            del st.session_state['fingerprint_auth']
+            st.rerun()
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
