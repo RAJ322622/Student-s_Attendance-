@@ -184,82 +184,81 @@ else:
                     st.warning("No face detected - please try again")
         
         elif method == "Fingerprint":
-            elif method == "Fingerprint":
-    st.info("Tap the fingerprint icon below and use your phone's fingerprint scanner to authenticate.")
-    
-    fingerprint_html = """
-    <script>
-        async function authenticateWithFingerprint() {
-            if (window.PublicKeyCredential) {
-                try {
-                    const result = await navigator.credentials.get({
-                        publicKey: {
-                            challenge: new Uint8Array(26),
-                            timeout: 60000,
-                            userVerification: "required",
-                        }
-                    });
-                    window.parent.postMessage("fingerprint_success", "*");
-                } catch (err) {
-                    window.parent.postMessage("fingerprint_failed", "*");
-                }
-            } else {
-                window.parent.postMessage("not_supported", "*");
-            }
-        }
-        authenticateWithFingerprint();
-    </script>
-    <div style="text-align:center">
-        <img src="https://img.icons8.com/ios-filled/100/fingerprint.png"/>
-    </div>
-    """
-
-    result = st.empty()
-
-    html(fingerprint_html, height=150)
-
-    # Listen to messages from the iframe
-    js_listener = """
-    <script>
-        window.addEventListener("message", (event) => {
-            if (event.data === "fingerprint_success") {
-                const streamlitEvent = new Event("fingerprint_success");
-                window.dispatchEvent(streamlitEvent);
-            } else if (event.data === "fingerprint_failed") {
-                const failEvent = new Event("fingerprint_failed");
-                window.dispatchEvent(failEvent);
-            } else if (event.data === "not_supported") {
-                const notSupportedEvent = new Event("not_supported");
-                window.dispatchEvent(notSupportedEvent);
-            }
-        });
-    </script>
-    """
-    html(js_listener, height=0)
-
-    # Handle result from JS
-    st.markdown(
-        """
-        <script>
-        window.addEventListener("fingerprint_success", function() {
-            fetch("/_stcore/fingerprint_success", {method: "POST"}).then(() => location.reload());
-        });
-        window.addEventListener("fingerprint_failed", function() {
-            alert("Fingerprint authentication failed. Try again.");
-        });
-        window.addEventListener("not_supported", function() {
-            alert("Biometric authentication is not supported on this browser.");
-        });
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Check for fingerprint status stored in session
-    if st.experimental_get_query_params().get("auth") == ["success"]:
-        record_attendance(st.session_state.current_student['Student ID'], "Fingerprint")
-
+            st.info("Tap the fingerprint icon below and use your phone's fingerprint scanner to authenticate.")
             
+            fingerprint_html = """
+            <script>
+                async function authenticateWithFingerprint() {
+                    if (window.PublicKeyCredential) {
+                        try {
+                            const result = await navigator.credentials.get({
+                                publicKey: {
+                                    challenge: new Uint8Array(26),
+                                    timeout: 60000,
+                                    userVerification: "required",
+                                }
+                            });
+                            window.parent.postMessage("fingerprint_success", "*");
+                        } catch (err) {
+                            window.parent.postMessage("fingerprint_failed", "*");
+                        }
+                    } else {
+                        window.parent.postMessage("not_supported", "*");
+                    }
+                }
+                authenticateWithFingerprint();
+            </script>
+            <div style="text-align:center">
+                <img src="https://img.icons8.com/ios-filled/100/fingerprint.png"/>
+            </div>
+            """
+        
+            result = st.empty()
+        
+            html(fingerprint_html, height=150)
+        
+            # Listen to messages from the iframe
+            js_listener = """
+            <script>
+                window.addEventListener("message", (event) => {
+                    if (event.data === "fingerprint_success") {
+                        const streamlitEvent = new Event("fingerprint_success");
+                        window.dispatchEvent(streamlitEvent);
+                    } else if (event.data === "fingerprint_failed") {
+                        const failEvent = new Event("fingerprint_failed");
+                        window.dispatchEvent(failEvent);
+                    } else if (event.data === "not_supported") {
+                        const notSupportedEvent = new Event("not_supported");
+                        window.dispatchEvent(notSupportedEvent);
+                    }
+                });
+            </script>
+            """
+            html(js_listener, height=0)
+        
+            # Handle result from JS
+            st.markdown(
+                """
+                <script>
+                window.addEventListener("fingerprint_success", function() {
+                    fetch("/_stcore/fingerprint_success", {method: "POST"}).then(() => location.reload());
+                });
+                window.addEventListener("fingerprint_failed", function() {
+                    alert("Fingerprint authentication failed. Try again.");
+                });
+                window.addEventListener("not_supported", function() {
+                    alert("Biometric authentication is not supported on this browser.");
+                });
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
+        
+            # Check for fingerprint status stored in session
+            if st.experimental_get_query_params().get("auth") == ["success"]:
+                record_attendance(st.session_state.current_student['Student ID'], "Fingerprint")
+        
+                    
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
