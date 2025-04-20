@@ -215,7 +215,7 @@ else:
         
         elif method == "Fingerprint":
            st.info("Press the button below and place your finger on the sensor")
-            if st.button("Scan Fingerprint", key="fingerprint_btn"):
+           if st.button("Scan Fingerprint", key="fingerprint_btn"):
                 with st.spinner("Scanning fingerprint..."):
                     # Simulate scanning delay
                     time.sleep(1.5)
