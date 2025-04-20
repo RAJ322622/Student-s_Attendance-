@@ -11,6 +11,8 @@ from email.mime.multipart import MIMEMultipart
 import time
 from streamlit.components.v1 import html
 import json
+import zipfile
+from io import BytesIO
 
 if 'fingerprint_auth' not in st.session_state:
     st.session_state.fingerprint_auth = False
@@ -154,17 +156,32 @@ else:
 
     tab1, tab2, tab3 = st.tabs(["Mark Attendance", "View Attendance", "Professor Portal"])
 
-
-
-# ... (keep your existing imports)
-
-with tab1:
-    st.header("Mark Attendance")
-    method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
-    
-    if method == "Face Recognition":
-        # ... (keep your existing face recognition code)
-    
+    with tab1:
+        st.header("Mark Attendance")
+        method = st.radio("Authentication Method", ["Face Recognition", "Fingerprint"])
+        
+        if method == "Face Recognition":
+            picture = st.camera_input("Take a picture for attendance")
+            
+            if picture:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                photo_path = f"data/attendance_photos/{st.session_state.current_student['Student ID']}_{timestamp}.jpg"
+                with open(photo_path, "wb") as f:
+                    f.write(picture.getbuffer())
+                
+                img_bytes = picture.getvalue()
+                img_array = np.frombuffer(img_bytes, np.uint8)
+                img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                
+                if detect_faces(img):
+                    record_attendance(
+                        st.session_state.current_student['Student ID'], 
+                        "Face Recognition",
+                        photo_path
+                    )
+                else:
+                    st.warning("No face detected - please try again")
+        
         elif method == "Fingerprint":
             # Generate a unique key for this component
             fingerprint_key = f"fingerprint_{st.session_state.current_student['Student ID']}"
@@ -272,6 +289,7 @@ with tab1:
                 )
                 del st.session_state['fingerprint_auth']
                 st.rerun()
+
     with tab2:
         st.header("Your Attendance Records")
         student_records = st.session_state.attendance[
@@ -297,9 +315,6 @@ with tab1:
             st.markdown(href_csv, unsafe_allow_html=True)
             
             if st.button("Prepare Photos for Download"):
-                import zipfile
-                from io import BytesIO
-                
                 zip_buffer = BytesIO()
                 with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                     for index, row in st.session_state.attendance.iterrows():
