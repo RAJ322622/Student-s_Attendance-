@@ -1,12 +1,9 @@
 streamlit==1.32.0
-opencv-python-headless==4.9.0.80
+streamlit-webrtc==0.47.0
+gTTS==2.4.0
+moviepy==1.0.3
 numpy==1.26.4
-pandas==2.1.4
-Pillow==10.1.0
-deepface==0.0.79
-# requirements.txt
-flask==3.0.2
-requests>=2.31.0
-uvicorn==0.29.0
-fastapi==0.110.0
+opencv-python-headless==4.9.0.80
+pandas==2.2.1
 sqlalchemy==2.0.25
+streamlit-autorefresh==1.0.1
